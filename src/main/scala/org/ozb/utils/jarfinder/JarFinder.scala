@@ -7,6 +7,7 @@ import java.io.FileFilter
 import java.util.zip.ZipFile
 import scala.collection.JavaConversions._
 import scala.util.matching.Regex
+import java.util.zip.ZipException
 
 object JarFinder {
 	val allJavaArchives = List("jar", "war", "ear") 
@@ -80,8 +81,9 @@ object JarFinder {
 		stats.archCount += 1
 		//println("scanning archive : " + file)
 		
-		val zfile = new ZipFile(file, ZipFile.OPEN_READ)
+		var zfile: ZipFile = null
 		try {
+			zfile = new ZipFile(file, ZipFile.OPEN_READ)
 			val entries = zfile.entries() // converted to scala Iterator thanks to implicit definitions in JavaConversions
 			// find entries matching the pattern and that are not paths (directories)
 			val matches = entries filter (entry =>
@@ -94,8 +96,11 @@ object JarFinder {
 					stats.matchCount += 1
 				}
 			}
+		} catch {
+			case ex: ZipException => err("Could not open zip file %s, exception : %s" format (file, ex))
 		} finally {
-			zfile.close()
+			if (zfile != null)
+				zfile.close()
 		}
 	}
 	
@@ -112,6 +117,10 @@ object JarFinder {
 			case -1 => null
 			case idx => filename.substring(idx + 1)
 		}
+	}
+	
+	def err(msg: String) = {
+		println("[ERR] " + msg)
 	}
 }
 
