@@ -14,7 +14,7 @@ libraryDependencies ++= Seq(
 	"com.google.gdata" % "gdata-spreadsheet-3.0" % "1.45.0",
 	"commons-lang" % "commons-lang" % "2.6",
 	// required for org.ozb.utils.jarfinder
-	"com.github.scopt" %% "scopt" % "1.1.2"
+	"com.github.scopt" %% "scopt" % "1.1.2" withSources()
 )
 
 scalacOptions ++= Seq("-deprecation")

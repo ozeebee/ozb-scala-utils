@@ -8,7 +8,16 @@ import java.util.zip.ZipFile
 import scala.collection.JavaConversions._
 import scala.util.matching.Regex
 import java.util.zip.ZipException
+import org.ozb.utils.io.FileUtils
 
+/**
+ * Find entries inside archives recursively.
+ * Ex:
+ * 1. find all occurances of 'Exception' entries (files) inside all the (jar) archives under the WEB-INF dir
+ *		$ jarfinder ./WEB-INF Exception
+ * 2. find all occurances of python (.py) files inside jar files whose name match "*template*jar"
+ * 		$ jarfinder --include "*template*jar" . .py
+ */
 object JarFinder {
 	val allJavaArchives = List("jar", "war", "ear") 
 	val allArchives = allJavaArchives :+ "zip"
@@ -23,6 +32,15 @@ object JarFinder {
 			arg("<dir>", "<dir> : directory to search in", {v: String => config.basedir = v; config.dir = new java.io.File(v)})
 			arg("<pattern>", "<pattern> : pattern to look for", {v: String => config.pattern = v})
 			opt("i", "ignorecase", "ignore case", {config.ignoreCase = true})
+			opt(None, "include", "<name pattern>", "include only archives whose name match the pattern", {v: String =>
+				// un-quote pattern if it's quoted
+				val QuotedPat = """"(.*)"""".r
+				val pattern = v match { // unquote pattern
+					case QuotedPat(p) =>p
+					case _ => v
+				}
+				config.includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
+			})
 			opt("a", "allarchives", "all archives (include zip files)", {config.allArchives = true})
 		}
 		
@@ -36,7 +54,9 @@ object JarFinder {
 		
 		if (parser.parse(theargs)) {
 			val stats = Stats()
-			println("looking for [" + config.pattern + "] in dir [" + config.basedir + "]")
+			println("looking for [" + config.pattern + "] in dir [" + config.basedir + "]" +
+						(config.includePattern.map(" including archives matching " + _).getOrElse(""))
+					)
 			proceed(stats)
 			println("found " + stats.matchCount + " entries in " + stats.archCount + " processed archives, scanned " + stats.dirCount + " directories")
 			println("in " + stats.elapsedTime() + " millis")
@@ -53,9 +73,11 @@ object JarFinder {
 				if (file.isDirectory())
 					true
 				else {
-					val ext = getExtension(file.getName())
+					val ext = FileUtils.getExtension(file.getName())
 					val archiveList = if (config.allArchives) allArchives else allJavaArchives
-					archiveList.contains(ext)
+					// the following will return false ONLY if the include pattern option is defined and if it DOES NOT match filename, otherwise true will be returned
+					val incrslt = config.includePattern.map(p => new Regex(p).pattern.matcher(file.getName()).matches()).getOrElse(true)
+					archiveList.contains(ext) && incrslt
 				}
 			}
 		}
@@ -87,7 +109,7 @@ object JarFinder {
 			val entries = zfile.entries() // converted to scala Iterator thanks to implicit definitions in JavaConversions
 			// find entries matching the pattern and that are not paths (directories)
 			val matches = entries filter (entry =>
-				! (regex findFirstIn entry.getName).isEmpty && ! entry.getName().endsWith("/") 
+				 ! entry.getName().endsWith("/") && ! (regex findFirstIn entry.getName).isEmpty 
 			)
 			if (! matches.isEmpty) {
 				println("." + file.getPath diff config.basedir)
@@ -104,39 +126,25 @@ object JarFinder {
 		}
 	}
 	
-	/** 
-	 * @return the extension of the file or null if none
-	 */
-	def getExtension(file: File): String = {
-		val arr = file.getName().split("\\.")
-		if (arr.length > 1) arr.last else null
-	}
-	
-	def getExtension(filename: String): String = {
-		filename.lastIndexOf('.') match {
-			case -1 => null
-			case idx => filename.substring(idx + 1)
-		}
-	}
-	
 	def err(msg: String) = {
 		println("[ERR] " + msg)
 	}
+	
+	case class Stats (
+		var archCount: Int = 0, // number of processed archives
+		var matchCount: Int = 0, // number of matching entries
+		var dirCount: Int = 0, // number of scanned directories
+		private var time0: Long = System.currentTimeMillis // elapsed time
+	) {
+		def elapsedTime(): Long = System.currentTimeMillis - time0
+	}
+	
+	case class Config (
+		var basedir: String = null,
+		var dir: java.io.File = null,
+		var pattern: String = null,
+		var ignoreCase: Boolean = false,
+		var includePattern: Option[String] = None, 
+		var allArchives: Boolean = false
+	)
 }
-
-case class Stats (
-	var archCount: Int = 0, // number of processed archives
-	var matchCount: Int = 0, // number of matching entries
-	var dirCount: Int = 0, // number of scanned directories
-	private var time0: Long = System.currentTimeMillis // elapsed time
-) {
-	def elapsedTime(): Long = System.currentTimeMillis - time0
-}
-
-case class Config (
-	var basedir: String = null,
-	var dir: java.io.File = null,
-	var pattern: String = null,
-	var ignoreCase: Boolean = false,
-	var allArchives: Boolean = false
-)
