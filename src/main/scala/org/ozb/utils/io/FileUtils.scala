@@ -4,6 +4,9 @@ import java.io.{File,FileInputStream,FileOutputStream}
 import java.io.InputStream
 import java.io.FileWriter
 import java.io.FileFilter
+import java.util.zip.ZipFile
+import java.util.zip.ZipException
+import java.io.IOException
 
 object FileUtils {
 	
@@ -164,6 +167,55 @@ object FileUtils {
 		filename.lastIndexOf('.') match {
 			case -1 => null
 			case idx => filename.substring(idx + 1)
+		}
+	}
+	
+	/**
+	 * Unzip the given zip file in the given directory
+	 */
+	def unzip(file: File, outputDir: File) = {
+		import scala.collection.JavaConversions._
+		
+		var zfile: ZipFile = null
+		try {
+			zfile = new ZipFile(file, ZipFile.OPEN_READ)
+			
+			// check output dir, create it if necessary
+			if (outputDir.exists() && !outputDir.isDirectory())
+				throw new IOException("outputDir must be a directory")
+			if (! outputDir.exists())
+				outputDir.mkdirs()
+			
+			val entries = zfile.entries() // converted to scala Iterator thanks to implicit definitions in JavaConversions
+			entries.foreach { entry =>
+				println("  entry [%s] isDir ? %s" format (entry.getName(), entry.isDirectory()))
+				
+				val name = entry.getName()
+				if (entry.isDirectory()) {
+					println("    creating dir [%s]" format new File(outputDir, name))
+					new File(outputDir, name).mkdirs()
+				} else {
+					val file = new File(outputDir, name)
+					println("    creating file [%s]" format file)
+					if (! file.getParentFile().isDirectory())
+						file.getParentFile().mkdirs()
+					
+					file.createNewFile()
+					val out = new FileOutputStream(file)
+					val in = zfile.getInputStream(entry)
+					val buffer = new Array[Byte](4096)
+					var len: Int = in.read(buffer)
+					while (len != -1) {
+						out.write(buffer, 0, len)
+						len = in.read(buffer)
+					}
+					out.close()
+					in.close()
+				}
+			}
+		} finally {
+			if (zfile != null)
+				zfile.close()
 		}
 	}
 }
