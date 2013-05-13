@@ -14,6 +14,8 @@ import scala.io.Source
 import org.ozb.utils.io.FileUtils
 
 /**
+ * [ABANDONNED - development has moved to project ozb-jartools]
+ * 
  * Example usages:
  * 
  * 1. Search for all occurances of 'setDomainEnv' in jar file toto.jar:
@@ -37,6 +39,7 @@ object JarGrep {
 			opt("i", "ignorecase", "ignore case", {config.ignoreCase = true})
 			opt("v", "verbose", "show informartion on each file/entry processed", {config.verbose = true})
 			opt("r", "recurse", "recursively process the given directory", {config.recurse = true})
+			opt(None, "enc", "<encoding>", "use given encoding instead of platform's default. Ex. 'UTF-8' or 'ISO-8859-1'.", {v: String =>	config.encoding = Some(v) })
 			opt(None, "include", "<name pattern>", "include only archives whose name match the pattern", {v: String =>
 				// un-quote pattern if it's quoted
 				val QuotedPat = """"(.*)"""".r
@@ -45,6 +48,15 @@ object JarGrep {
 					case _ => v
 				}
 				config.includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
+			})
+			opt(None, "includeEntry", "<name pattern>", "process archive entries whose name match the pattern", {v: String =>
+				// un-quote pattern if it's quoted
+				val QuotedPat = """"(.*)"""".r
+				val pattern = v match { // unquote pattern
+					case QuotedPat(p) =>p
+					case _ => v
+				}
+				config.includeEntryPattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
 			})
 			opt("a", "allarchives", "all archives (include zip files)", {config.allArchives = true})		
 		}
@@ -61,7 +73,8 @@ object JarGrep {
 			val stats = Stats()
 			if (config.recurse)
 				println("looking for [" + config.pattern + "] in dir [" + config.file + "]" +
-							(config.includePattern.map(" including archives matching " + _).getOrElse(""))
+							(config.includePattern.map(" including archives matching " + _).getOrElse("")) +
+							(config.includeEntryPattern.map(" including entries matching " + _).getOrElse(""))
 						)
 			else
 				println("looking for [" + config.pattern + "] in file [" + config.file + "]")
@@ -129,7 +142,10 @@ object JarGrep {
 		var zfile: ZipFile = null
 		try {
 			zfile = new ZipFile(file, ZipFile.OPEN_READ)
-			val entries = zfile.entries() // converted to scala Iterator thanks to implicit definitions in JavaConversions
+			val entries: Iterator[ZipEntry] = config.includeEntryPattern match { // converted to scala Iterator thanks to implicit definitions in JavaConversions
+				case Some(p) => zfile.entries() filter (e => new Regex(p).pattern.matcher(e.getName()).matches)
+				case None => zfile.entries()
+			}
 			var archiveNamePrinted = false
 			val matchFound: Boolean = entries.foldLeft(false) { (result: Boolean, entry: ZipEntry) =>
 				val entryMatches = processEntry(zfile, entry, regex, stats, indent + "  ")
@@ -183,7 +199,8 @@ object JarGrep {
 			var linenum = 0
 			var filenamePrinted = false
 			var matchFoundInArchive = false
-			Source.fromInputStream(is).getLines().foldLeft(Seq.empty[Tuple2[Int, String]]) { (result: Seq[Tuple2[Int, String]], line: String) =>
+			val source = config.encoding.map(Source.fromInputStream(is, _)).getOrElse(Source.fromInputStream(is))
+			source.getLines().foldLeft(Seq.empty[Tuple2[Int, String]]) { (result: Seq[Tuple2[Int, String]], line: String) =>
 				//println("%s    line : %s" format (indent, line))
 				linenum += 1
 				if (regex.findFirstIn(line).isDefined) { // match found !
@@ -231,7 +248,9 @@ object JarGrep {
 		var ignoreCase: Boolean = false,
 		var verbose: Boolean = false,
 		var recurse: Boolean = false,
-		var includePattern: Option[String] = None, 
+		var includePattern: Option[String] = None,
+		var includeEntryPattern: Option[String] = None,
+		var encoding: Option[String] = None,
 		var allArchives: Boolean = false
 	)
 }

@@ -1,13 +1,71 @@
 package org.ozb.utils.ivy
 
+import scopt.OptionParser
 import scala.sys.process.Process
 import scala.sys.process.ProcessLogger
 import scala.xml.Elem
 import org.ozb.utils.io.FileUtils
+import scala.xml.PrettyPrinter
 
 object IvyLocalRepositoryInstaller {
+
+	case class Input(
+		var ivyJar: String = null,
+		var organisation: String = null,
+		var module: String = null,
+		var revision: String = null,
+		var jar: String = null,
+		var src: Option[String] = None
+	)
 	
 	def main(args: Array[String]) {
+		val input = new Input()
+		val parser = new OptionParser("IvyLocalRepositoryInstaller") {
+			arg("<ivyjar>", "<ivyjar> : path to the Ivy jar file", { input.ivyJar = _ })
+			arg("<organisation>", "<organisation> : organisation name", { input.organisation = _ })
+			arg("<module>", "<module> : module name", { input.module = _ })
+			arg("<revision>", "<revision> : revision", { input.revision = _ })
+			
+			arg("<jar>", "<jar> : path to the artifact's jar file", { input.jar = _ })
+			argOpt("<src>", "<src> : (optional) path to the artifact's jar/zip source file", { v: String => input.src = Some(v) })
+		}
+		
+//		val theargs = Array(
+//			System.getProperty("user.home") + "/.ivy2/cache/org.apache.ivy/ivy/jars/ivy-2.2.0.jar",
+//			"org.eclipse.swt", "swt-cocoa-macosx", "3.7.2",
+//			System.getProperty("user.home") + "/Dev/Eclipse/eclipse-jee-indigo-SR2-AJO/plugins/org.eclipse.swt.cocoa.macosx_3.7.2.v3740f.jar",
+//			System.getProperty("user.home") + "/Dev/Eclipse/eclipse-jee-indigo-SR2-AJO/plugins/org.eclipse.swt.cocoa.macosx.source_3.7.2.v3740f.jar"
+//		)
+		val theargs = args
+		
+		if (parser.parse(theargs)) {
+			checkPath(input.ivyJar, "invalid path for Ivy jar file : %s" format input.ivyJar)
+			checkPath(input.jar, "invalid path for artifact jar file : %s" format input.jar)
+			input.src foreach (p => checkPath(p, "invalid path for artifact sources jar/zip file : %s" format p))
+			println("ok")
+			install(input)
+		}
+	}
+	
+	private def checkPath(path: String, errMsg: String) {
+		if (! new java.io.File(path).canRead()) {
+			System.err.println(errMsg)
+			System.exit(1)
+		}
+	}
+	
+	def install(input: Input) {
+		// NOTE: using module name as artifact name
+		val ivyModule = IvyModule(input.organisation, input.module, input.revision, 
+			Seq(Artifact(input.module, "jar", "jar", input.jar)) ++ 
+			input.src.map { srcjar =>
+				Seq(Artifact(input.module + "-sources", getExt(srcjar), "src", srcjar))
+			}.getOrElse(Seq.empty)
+		)
+		publish(input.ivyJar, ivyModule)		
+	}
+	
+	def test(args: Array[String]) {
 		println("**** starting ****")
 	
 		val ivyJar = System.getProperty("user.home") + "/.ivy2/cache/org.apache.ivy/ivy/jars/ivy-2.2.0.jar"
@@ -25,9 +83,9 @@ object IvyLocalRepositoryInstaller {
 	}
 	
 	def publish(ivyJar: String, ivyModule: IvyModule): Boolean = {
-		println("installing " + ivyModule.organisation + " % " + ivyModule.module + " % " + ivyModule.revision + " in ivy local repository")
+		println("installing (%s %% %s %% %s) in ivy local repository" format (ivyModule.organisation, ivyModule.module, ivyModule.revision))
 		// create ivyXml
-		var ivyXml = ivyModule.toIvyXml
+		var ivyXml = new PrettyPrinter(360, 4).format(ivyModule.toIvyXml)
 		// create temporary ivy xml file
 		val file = FileUtils.createTempFile(ivyXml.toString())
 		// publish
@@ -47,7 +105,7 @@ object IvyLocalRepositoryInstaller {
 			}
 		}
 		else {
-			// if only one artifact, the publish pattern if the file path
+			// if only one artifact, the publish pattern is the file path
 			val publishPattern = ivyModule.artifacts(0).filePath
 			publish(ivyJar, file.getPath(), ivyModule.revision, publishPattern)
 		}
@@ -66,6 +124,7 @@ object IvyLocalRepositoryInstaller {
 					"-revision", revision,
 					// "-status", "integration",
 					"-overwrite",
+					"-deliverto", ivyXmlFile, // if omitted, ivy will deliver the ivy.xml to the current directory, so we force it to deliver to our temporary file
 					"-ivy", ivyXmlFile
 					)
 		)
@@ -79,8 +138,23 @@ object IvyLocalRepositoryInstaller {
 		exitCode == 0
 	}
 	
-	def getJavaExecutablePath(): String = {
-		System.getProperty("java.home") + "/bin/java"
+	def getJavaExecutablePath(): String = System.getProperty("java.home") + ( 
+			if (System.getProperty("os.name").startsWith("Windows"))
+				"/bin/java.exe"
+			else
+				"/bin/java"
+	)
+	
+	def getExt(name: String) = {
+		val pos = name.lastIndexOf(".")
+		if (pos == -1 || name.length() == pos+1)
+			fatal("cannot determine file extension for path %s" format name)
+		name.substring(pos+1)
+	}
+	
+	def fatal(msg: String, exitCode: Int = 1) {
+		System.err.println(msg)
+		System.exit(exitCode)
 	}
 	
 	case class IvyModule(

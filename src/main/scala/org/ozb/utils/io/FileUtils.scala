@@ -7,6 +7,8 @@ import java.io.FileFilter
 import java.util.zip.ZipFile
 import java.util.zip.ZipException
 import java.io.IOException
+import java.util.zip.ZipOutputStream
+import java.util.zip.ZipEntry
 
 object FileUtils {
 	
@@ -170,16 +172,24 @@ object FileUtils {
 		}
 	}
 	
+	def withZipFile[R](file: File, mode: Int = ZipFile.OPEN_READ)(f: ZipFile => R):R = {
+		var zfile: ZipFile = null
+		try {
+			zfile = new ZipFile(file, mode)
+			f(zfile)
+		} finally {
+			if (zfile != null)
+				zfile.close()
+		}
+	}
+	
 	/**
 	 * Unzip the given zip file in the given directory
 	 */
 	def unzip(file: File, outputDir: File) = {
 		import scala.collection.JavaConversions._
 		
-		var zfile: ZipFile = null
-		try {
-			zfile = new ZipFile(file, ZipFile.OPEN_READ)
-			
+		withZipFile(file) { zfile =>
 			// check output dir, create it if necessary
 			if (outputDir.exists() && !outputDir.isDirectory())
 				throw new IOException("outputDir must be a directory")
@@ -213,9 +223,52 @@ object FileUtils {
 					in.close()
 				}
 			}
-		} finally {
-			if (zfile != null)
-				zfile.close()
 		}
 	}
+
+	/**
+	 * Zip the given directory contents (recursively) in the given output zip file
+	 */
+	def zip(topdir: File, outputFile: File, includeEmptyDirs: Boolean = true) = {
+		if (! topdir.isDirectory())
+			throw new IllegalArgumentException("dir [%s] is not a directory" format topdir)
+		val outStream = new FileOutputStream(outputFile)
+		val zipos = new ZipOutputStream(outStream)
+		val buffer = new Array[Byte](4096)
+		val topdirPath = topdir.getPath() + "/"
+
+		def addDirToZip(dir: File, zipos: ZipOutputStream): Unit = {
+			val files = dir.listFiles()
+			if (includeEmptyDirs && files.isEmpty) { // add emtpy dir to archive
+				//println("  adding empty dir")
+				zipos.putNextEntry(new ZipEntry((dir.getPath() diff topdirPath) + "/"))
+				zipos.closeEntry()
+			}
+			files foreach { file =>
+				if (file.isDirectory())
+					addDirToZip(file, zipos)
+				else {
+					val relativePath = file.getPath() diff topdirPath
+					//println("  adding entry [%s]" format relativePath)
+					val entry = new ZipEntry(relativePath)
+					zipos.putNextEntry(entry)
+		
+					val in = new FileInputStream(file)
+					var len: Int = in.read(buffer)
+					while (len != -1) {
+						zipos.write(buffer, 0, len)
+						len = in.read(buffer)
+					}
+					in.close()
+					
+					zipos.closeEntry()
+				}
+			}
+		}
+		addDirToZip(topdir, zipos)
+		
+		zipos.close()
+		outStream.close()
+	}
+	
 }

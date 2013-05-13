@@ -4,7 +4,7 @@ import scala.io.Source
 import scala.util.matching.Regex
 
 /**
- * TODO : replace java proces builder with scala.sys.process objects
+ * TODO : replace java process builder with scala.sys.process objects
  */
 object KeychainUtils {
 

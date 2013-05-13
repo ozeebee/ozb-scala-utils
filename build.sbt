@@ -2,20 +2,17 @@ organization := "org.ozb"
 
 name := "ozb-scala-utils"
 
-version := "0.1"
+version := "0.2"
 
-scalaVersion := "2.9.1"
+scalaVersion := "2.9.3"
 
 libraryDependencies ++= Seq(
-	// required for org.ozb.utils.google.gata
-	"com.google.api.client" % "google-api-client" % "1.11.0-beta",
-	"com.google.api.client" % "google-oauth-client" % "1.11.0-beta",	// required by google-api-client
-	"com.google.gdata" % "gdata-core-1.0" % "1.47.0",
-	"com.google.gdata" % "gdata-docs-3.0" % "1.47.0",
-	"com.google.gdata" % "gdata-spreadsheet-3.0" % "1.47.0",
-	"commons-lang" % "commons-lang" % "2.6",
-	// required for org.ozb.utils.jarfinder
-	"com.github.scopt" %% "scopt" % "2.1.0" withSources()
+	"com.github.scopt" % "scopt_2.9.2" % "2.1.0" withSources()
 )
+
+// exclude old stuff from sources 
+excludeFilter in unmanagedSources := new sbt.FileFilter {
+	def accept(f: File): Boolean = ".*org/ozb/utils/jarfinder/.*".r.pattern.matcher(f.absolutePath).matches
+}
 
 scalacOptions ++= Seq("-deprecation")

@@ -11,6 +11,8 @@ import java.util.zip.ZipException
 import org.ozb.utils.io.FileUtils
 
 /**
+ * [ABANDONNED - development has moved to project ozb-jartools]
+ * 
  * Find entries inside archives recursively.
  * Ex:
  * 1. find all occurances of 'Exception' entries (files) inside all the (jar) archives under the WEB-INF dir
