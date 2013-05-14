@@ -1,5 +1,4 @@
 # ozb-scala-utils
----
 
 Collection of various scala utility classes.
 
