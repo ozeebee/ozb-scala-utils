@@ -15,4 +15,4 @@ excludeFilter in unmanagedSources := new sbt.FileFilter {
 	def accept(f: File): Boolean = ".*org/ozb/utils/jarfinder/.*".r.pattern.matcher(f.absolutePath).matches
 }
 
-scalacOptions ++= Seq("-deprecation")
+scalacOptions ++= Seq("-deprecation", "-unchecked")

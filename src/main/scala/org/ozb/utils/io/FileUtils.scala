@@ -160,16 +160,11 @@ object FileUtils {
 	/** 
 	 * @return the extension of the file or null if none
 	 */
-	def getExtension(file: File): String = {
-		val arr = file.getName().split("\\.")
-		if (arr.length > 1) arr.last else null
-	}
+	def getExtension(file: File): Option[String] = getExtension(file.getName())
 	
-	def getExtension(filename: String): String = {
-		filename.lastIndexOf('.') match {
-			case -1 => null
-			case idx => filename.substring(idx + 1)
-		}
+	def getExtension(filename: String): Option[String] = {
+		val arr = filename.split('.')
+		if (arr.length > 1) arr.lastOption else None
 	}
 	
 	def withZipFile[R](file: File, mode: Int = ZipFile.OPEN_READ)(f: ZipFile => R):R = {

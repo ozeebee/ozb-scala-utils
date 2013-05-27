@@ -34,10 +34,7 @@ object KeychainUtils {
 		
 		// 2nd way : use findFirstMatchIn method
 		val regex = new Regex("""(?s)password: "([^"]*)".*""")
-		regex.findFirstMatchIn(str) match {
-			case Some(m) => Some(m.group(1))
-			case None => Option(null)	// AJO : Option(null) evaluates to None
-		}
+		regex.findFirstMatchIn(str) map (_.group(1))
 	}
 
 }
