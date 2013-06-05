@@ -167,6 +167,13 @@ object FileUtils {
 		if (arr.length > 1) arr.lastOption else None
 	}
 	
+	def getPathRelativeTo(file: File, baseFile: File): Option[String] = {
+		if (file.getPath().startsWith(baseFile.getPath()))
+			Some(file.getPath().substring(baseFile.getPath().length()))
+		else
+			None
+	}
+	
 	def withZipFile[R](file: File, mode: Int = ZipFile.OPEN_READ)(f: ZipFile => R):R = {
 		var zfile: ZipFile = null
 		try {

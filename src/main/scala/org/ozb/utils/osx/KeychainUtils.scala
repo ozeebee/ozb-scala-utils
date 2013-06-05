@@ -2,39 +2,48 @@ package org.ozb.utils.osx
 
 import scala.io.Source
 import scala.util.matching.Regex
+import scala.sys.process.Process
+import scala.sys.process.ProcessLogger
 
 /**
- * TODO : replace java process builder with scala.sys.process objects
+ * Functions to store/read passwords from Mac OS X's Keychain
  */
 object KeychainUtils {
 
 	def main(args: Array[String]) {
-		println("pwd = " + KeychainUtils.getKeychainPassword("AJO_GDocs_test").get)
+		println("[%s]" format KeychainUtils.getKeychainPassword("TOTO"))
 	}
 	
 	/**
 	 * This function will call MacOSX security process which should return (if successfull)
-	 * the password in the error stream which is then parsed to be returned
+	 * the password in the standard output
 	 */
 	def getKeychainPassword(serviceName: String): Option[String] = {
-		val processBuilder = new ProcessBuilder("security", "find-generic-password", "-gs", serviceName)
-		val process = processBuilder.start()
-		val errorStream = process.getErrorStream()
-		val str = Source.fromInputStream(errorStream).mkString
-		//println("str = " + str)
-		
-		/*
-		// 1st way : use regexp match (which will do a full match hence the complete regexp pattern as opposed to the 2nd way)
-		val regex = new Regex("""(?s)password: "([^"]*)".*""") // AJO: the (?s) is essential to denote a multi-line pattern ... without that the (full) match will always fail
-				str match {
-			case regex(password) => Option(password) // AJO: this will call regex.unapply method
-			case _ => Option(null)
-		}
-		*/
-		
-		// 2nd way : use findFirstMatchIn method
-		val regex = new Regex("""(?s)password: "([^"]*)".*""")
-		regex.findFirstMatchIn(str) map (_.group(1))
+		var output: String = null
+		val retcode = Process(Seq("security", "find-generic-password", "-ws", serviceName)) ! ProcessLogger(output = _)
+		if (retcode == 0)
+			Some(output)
+		else
+			None
 	}
 
+	/**
+	 * Create or update a password in the Mac OS X default keychain for the
+	 * given service. By default the account of the current user will be used.
+	 */
+	def addKeychainPassword(serviceName: String, password: String, account: String = System.getProperty("user.name")) {
+		var output: String = null
+		val cmd = Seq(
+				"security", "add-generic-password", 
+				"-a", account, 
+				"-s", serviceName, 
+				"-w", password, 
+				"-U", 
+				"-T", "")
+		//println("running command : [%s]" format cmd.mkString(" "))
+		val retcode = Process(cmd) ! ProcessLogger(output = _)
+		//println("retcode = " + retcode)
+		if (retcode != 0)
+			throw new java.io.IOException("keychain password creation failed : %s" format output)
+	}
 }
