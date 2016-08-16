@@ -29,21 +29,23 @@ object JarFinder {
 	
 	def main(args: Array[String]) {
 		//args.foreach(println) // dump args
-		val parser = new OptionParser("JarFinder") {
-			//opt("d", "dir", "<dir>", "the directory to search in", {v: String => config.basedir = v; config.dir = new java.io.File(v)})
-			arg("<dir>", "<dir> : directory to search in", {v: String => config.basedir = v; config.dir = new java.io.File(v)})
-			arg("<pattern>", "<pattern> : pattern to look for", {v: String => config.pattern = v})
-			opt("i", "ignorecase", "ignore case", {config.ignoreCase = true})
-			opt(None, "include", "<name pattern>", "include only archives whose name match the pattern", {v: String =>
+		val parser = new OptionParser[Config]("JarFinder") {
+			arg[String]("<dir>") text("directory to search in") action { (x, c) =>
+				c.copy(basedir = x, dir = new java.io.File(x)) }
+			arg[String]("<pattern>") text("pattern to look for") action { (x, c) => 
+				c.copy(pattern = x) }
+			opt[Unit]('i', "ignorecase") text("ignore case") action { (_, c) => 
+				c.copy(ignoreCase = true) }
+			opt[Unit]('a', "allarchives") text("all archives (include zip files)") action { (_, c) => 
+				c.copy(allArchives = true) }
+			opt[String]("include") valueName("<name pattern>") text("include only archives whose name match the pattern") action { (x, c) => 
 				// un-quote pattern if it's quoted
 				val QuotedPat = """"(.*)"""".r
-				val pattern = v match { // unquote pattern
+				val pattern = x match { // unquote pattern
 					case QuotedPat(p) =>p
-					case _ => v
+					case _ => x
 				}
-				config.includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
-			})
-			opt("a", "allarchives", "all archives (include zip files)", {config.allArchives = true})
+				c.copy(includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))) }
 		}
 		
 		//val testArgs = "/Users/ajo/Dev/Oracle/Middleware_10.3.5 EJBException".split(" ")
@@ -54,7 +56,7 @@ object JarFinder {
 		//val theargs = if (args.isEmpty) testArgs else args
 		val theargs = args
 		
-		if (parser.parse(theargs)) {
+		parser.parse(theargs, Config()) map { config =>
 			val stats = Stats()
 			println("looking for [" + config.pattern + "] in dir [" + config.basedir + "]" +
 						(config.includePattern.map(" including archives matching " + _).getOrElse(""))

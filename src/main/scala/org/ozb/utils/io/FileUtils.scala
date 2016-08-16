@@ -79,7 +79,7 @@ object FileUtils {
 		else {
 			if (destFile.createNewFile()) {
 				new FileOutputStream(destFile) getChannel() transferFrom(
-						new FileInputStream(srcFile) getChannel, 0, Long.MaxValue)
+						new FileInputStream(srcFile).getChannel, 0, Long.MaxValue)
 				true
 			}
 			else
@@ -101,7 +101,13 @@ object FileUtils {
 		w.write(content)
 		w.close()
 	}
-	
+
+	/**
+	 * Write binary data to a given file
+	 */
+	def writeToFile(file: File, content: Array[Byte]): Unit =
+		IOUtils.withOutputStream(new FileOutputStream(file))(_.write(content))
+
 	/**
 	 * Detect if the passed inputsteam contains binary content (as opposed to text content).
 	 * Inspired from http://stackoverflow.com/questions/3093580/how-to-check-whether-the-file-is-binary

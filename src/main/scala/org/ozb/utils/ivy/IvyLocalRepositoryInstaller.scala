@@ -19,15 +19,20 @@ object IvyLocalRepositoryInstaller {
 	)
 	
 	def main(args: Array[String]) {
-		val input = new Input()
-		val parser = new OptionParser("IvyLocalRepositoryInstaller") {
-			arg("<ivyjar>", "<ivyjar> : path to the Ivy jar file", { input.ivyJar = _ })
-			arg("<organisation>", "<organisation> : organisation name", { input.organisation = _ })
-			arg("<module>", "<module> : module name", { input.module = _ })
-			arg("<revision>", "<revision> : revision", { input.revision = _ })
-			
-			arg("<jar>", "<jar> : path to the artifact's jar file", { input.jar = _ })
-			argOpt("<src>", "<src> : (optional) path to the artifact's jar/zip source file", { v: String => input.src = Some(v) })
+		val parser = new OptionParser[Input]("IvyLocalRepositoryInstaller") {
+			head("IvyLocalRepositoryInstaller", "v0.1")
+			arg[String]("<ivyjar>") action { (x, c) => 
+				c.copy(ivyJar = x) } text("path to the Ivy jar file")
+			arg[String]("<organisation>") action { (x, c) => 
+				c.copy(organisation = x) } text("organisation name")
+			arg[String]("<module>") action { (x, c) => 
+				c.copy(module = x) } text("module name")
+			arg[String]("<revision>") action { (x, c) => 
+				c.copy(revision = x) } text("revision name")
+			arg[String]("<jar>") action { (x, c) => 
+				c.copy(jar = x) } text("path to the artifact's jar file")
+			arg[String]("<src>") optional() action { (x, c) => 
+				c.copy(src = Some(x)) } text("(optional) path to the artifact's jar/zip source file")
 		}
 		
 //		val theargs = Array(
@@ -38,12 +43,14 @@ object IvyLocalRepositoryInstaller {
 //		)
 		val theargs = args
 		
-		if (parser.parse(theargs)) {
+		parser.parse(theargs, Input()) map { input =>
 			checkPath(input.ivyJar, "invalid path for Ivy jar file : %s" format input.ivyJar)
 			checkPath(input.jar, "invalid path for artifact jar file : %s" format input.jar)
 			input.src foreach (p => checkPath(p, "invalid path for artifact sources jar/zip file : %s" format p))
 			println("ok")
 			install(input)
+		} getOrElse {
+			parser.showUsage
 		}
 	}
 	

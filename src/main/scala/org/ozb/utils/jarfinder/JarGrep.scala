@@ -32,34 +32,38 @@ object JarGrep {
 
 	def main(args: Array[String]) {
 		//args.foreach(println) // dump args
-		val parser = new OptionParser("JarGrep") {
-			//opt("d", "dir", "<dir>", "the directory to search in", {v: String => config.basedir = v; config.dir = new java.io.File(v)})
-			arg("<pattern>", "<pattern> : pattern to look for", {v: String => config.pattern = v})
-			arg("<file>", "<file> : archive file to grep or directory to recurse into", {v: String => config.file = new java.io.File(v)})
-			opt("i", "ignorecase", "ignore case", {config.ignoreCase = true})
-			opt("v", "verbose", "show informartion on each file/entry processed", {config.verbose = true})
-			opt("r", "recurse", "recursively process the given directory", {config.recurse = true})
-			opt(None, "enc", "<encoding>", "use given encoding instead of platform's default. Ex. 'UTF-8' or 'ISO-8859-1'.", {v: String =>	config.encoding = Some(v) })
-			opt(None, "include", "<name pattern>", "include only archives whose name match the pattern", {v: String =>
+		val parser = new OptionParser[Config]("JarFinder") {
+			arg[String]("<pattern>") text("pattern to look for") action { (x, c) => 
+				c.copy(pattern = x) }
+			arg[File]("<file>") text("archive file to grep or directory to recurse into") action { (x, c) =>
+				c.copy(file = x) }
+			opt[Unit]('i', "ignorecase") text("ignore case") action { (_, c) => 
+				c.copy(ignoreCase = true) }
+			opt[Unit]('v', "verbose") text("show informartion on each file/entry processed") action { (_, c) => 
+				c.copy(verbose = true) }
+			opt[Unit]('r', "recurse") text("recursively process the given directory") action { (_, c) => 
+				c.copy(recurse = true) }
+			opt[Unit]('a', "allarchives") text("all archives (include zip files)") action { (_, c) => 
+				c.copy(allArchives = true) }
+			opt[String]("enc") valueName("<encoding>") text("use given encoding instead of platform's default. Ex. 'UTF-8' or 'ISO-8859-1'.") action { (x, c) => 
+				c.copy(encoding = Some(x)) }
+			opt[String]("include") valueName("<name pattern>") text("include only archives whose name match the pattern") action { (x, c) => 
 				// un-quote pattern if it's quoted
 				val QuotedPat = """"(.*)"""".r
-				val pattern = v match { // unquote pattern
+				val pattern = x match { // unquote pattern
 					case QuotedPat(p) =>p
-					case _ => v
+					case _ => x
 				}
-				config.includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
-			})
-			opt(None, "includeEntry", "<name pattern>", "process archive entries whose name match the pattern", {v: String =>
+				c.copy(includePattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))) }
+			opt[String]("includeEntry") valueName("<name pattern>") text("process archive entries whose name match the pattern") action { (x, c) => 
 				// un-quote pattern if it's quoted
 				val QuotedPat = """"(.*)"""".r
-				val pattern = v match { // unquote pattern
+				val pattern = x match { // unquote pattern
 					case QuotedPat(p) =>p
-					case _ => v
+					case _ => x
 				}
-				config.includeEntryPattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))
-			})
-			opt("a", "allarchives", "all archives (include zip files)", {config.allArchives = true})		
-		}
+				c.copy(includeEntryPattern = Some(pattern.replace(".", "\\.").replace("*", ".*"))) }
+		}		
 		
 		//val testArgs = "setDomainEnv /Users/ajo/Dev/Oracle/middlewarePS5/user_templates/soaclusterdomain_10.3.6.0_oel6.jar".split(" ")
 		//val testArgs = "-v -r setDomainEnv /Users/ajo/Dev/Oracle/middlewarePS5/user_templates/soaclusterdomain_10.3.6.0_oel6/".split(" ")
@@ -69,7 +73,7 @@ object JarGrep {
 		//val theargs = if (args.isEmpty) testArgs else args
 		val theargs = args
 		
-		if (parser.parse(theargs)) {
+		parser.parse(theargs, Config()) map { config =>
 			val stats = Stats()
 			if (config.recurse)
 				println("looking for [" + config.pattern + "] in dir [" + config.file + "]" +
@@ -84,6 +88,8 @@ object JarGrep {
 			else
 				println("found %d matches in %d entries, processed %d entries" format (stats.lineMatchCount, stats.entryMatchCount, stats.entryCount))
 			println("in " + stats.elapsedTime() + " millis")
+		} getOrElse {
+			parser.showUsage
 		}
 	}
 	
